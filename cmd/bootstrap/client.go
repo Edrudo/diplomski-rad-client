@@ -8,7 +8,6 @@ import (
 	"crypto/x509"
 	"flag"
 	"fmt"
-	"hash"
 	"log"
 	"net/http"
 	"os"
@@ -18,18 +17,13 @@ import (
 	"github.com/quic-go/quic-go/logging"
 	"github.com/quic-go/quic-go/qlog"
 
-	"http3-client-poc/cmd/bootstrap/tlsconfig"
 	"http3-client-poc/cmd/exitcodes"
+	"http3-client-poc/internal/application"
+	"http3-client-poc/internal/tlsconfig"
 	"http3-client-poc/internal/utils"
 )
 
-type Client struct {
-	HashGenerator hash.Hash
-	HttpClient    *http.Client
-	roundTriper   *http3.RoundTripper
-}
-
-func NewClient() (*Client, *http3.RoundTripper) {
+func NewClient() (*application.Client, *http3.RoundTripper) {
 	utils.DefaultLogger.SetLogLevel(utils.LogLevelError)
 
 	roundTripper := initilizeRoundTripper()
@@ -37,11 +31,8 @@ func NewClient() (*Client, *http3.RoundTripper) {
 		Transport: roundTripper,
 	}
 
-	return &Client{
-		HashGenerator: sha256.New(),
-		roundTriper:   roundTripper,
-		HttpClient:    httpClient,
-	}, roundTripper
+	return application.NewClient(sha256.New(), httpClient, roundTripper), roundTripper
+
 }
 
 func initilizeRoundTripper() *http3.RoundTripper {
