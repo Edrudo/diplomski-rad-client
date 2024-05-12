@@ -92,7 +92,7 @@ func (c *Client) sendPhoto(args []string) {
 			go func(partNumber int) {
 				bdy, err := json.Marshal(
 					ImagePart{
-						ImageHash:  fmt.Sprintf("%v.%v", calculatedHash, imageFormat),
+						DataHash:   fmt.Sprintf("%v.%v", calculatedHash, imageFormat),
 						PartNumber: partNumber + 1,
 						TotalParts: numImageParts,
 						PartData:   image[partNumber*imagePartSize : (partNumber+1)*imagePartSize],
