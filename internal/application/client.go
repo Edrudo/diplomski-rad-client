@@ -9,7 +9,6 @@ import (
 	"hash"
 	"net/http"
 	"os"
-	"strings"
 	"sync"
 
 	"github.com/quic-go/quic-go/http3"
@@ -69,9 +68,6 @@ func (c *Client) sendPhoto(args []string) {
 			utils.DefaultLogger.Fatalf(err, exitcodes.ExitFailedReadingImage)
 		}
 
-		s := strings.Split(imagePath, ".")
-		imageFormat := s[len(s)-1]
-
 		imageParts := make([]ImagePart, 0)
 		numImageParts := len(image) / imagePartSize
 		if len(imageParts)%1450 > 0 {
@@ -92,7 +88,7 @@ func (c *Client) sendPhoto(args []string) {
 			go func(partNumber int) {
 				bdy, err := json.Marshal(
 					ImagePart{
-						DataHash:   fmt.Sprintf("%v.%v", calculatedHash, imageFormat),
+						DataHash:   fmt.Sprintf("%v", calculatedHash),
 						PartNumber: partNumber + 1,
 						TotalParts: numImageParts,
 						PartData:   image[partNumber*imagePartSize : (partNumber+1)*imagePartSize],
