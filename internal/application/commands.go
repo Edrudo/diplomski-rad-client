@@ -3,7 +3,7 @@ package application
 type CommandName int
 
 const (
-	SendPhoto CommandName = iota
+	SendGeoshot CommandName = iota
 )
 
 type Command struct {

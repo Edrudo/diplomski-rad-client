@@ -5,6 +5,6 @@ const (
 	ExitUnkownCommand
 	ExitFailedInit
 	ExitBadArguments
-	ExitFailedReadingImage
-	ExitFailedProcessingImage
+	ExitFailedReadingFile
+	ExitFailedProcessingData
 )

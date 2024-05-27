@@ -37,8 +37,8 @@ func NewClient(
 
 func (c *Client) ExecuteCommand(command Command) {
 	switch command.Name {
-	case SendPhoto:
-		c.sendPhoto(command.Args)
+	case SendGeoshot:
+		c.sendGeoshot(command.Args)
 	default:
 		utils.DefaultLogger.Fatalf(
 			errors.New(
@@ -48,58 +48,73 @@ func (c *Client) ExecuteCommand(command Command) {
 	}
 }
 
-func (c *Client) sendPhoto(args []string) {
-	imagePartSize := 1400
+func (c *Client) sendGeoshot(args []string) {
+	dataPartSize := 1400
 	if len(args) < 2 {
 		utils.DefaultLogger.Fatalf(
 			errors.New(
-				"arguments needed for the SendPhoto command: "+
-					"\t - url where image will be sent"+
-					"\t - at least one path to image that needs to be sent",
+				"arguments needed for the SendGeoshot command: "+
+					"\t - url where data will be sent"+
+					"\t - at least one path to json that needs to be sent",
 			), exitcodes.ExitBadArguments,
 		)
 	}
 	addr := args[0]
-	imagePaths := args[1:]
+	geoshotPaths := args[1:]
 
-	for _, imagePath := range imagePaths {
-		image, err := os.ReadFile(imagePath)
+	for _, geoshotPath := range geoshotPaths {
+		geoshot, err := os.ReadFile(geoshotPath)
 		if err != nil {
-			utils.DefaultLogger.Fatalf(err, exitcodes.ExitFailedReadingImage)
+			utils.DefaultLogger.Fatalf(err, exitcodes.ExitFailedReadingFile)
 		}
 
-		imageParts := make([]ImagePart, 0)
-		numImageParts := len(image) / imagePartSize
-		if len(imageParts)%1450 > 0 {
-			numImageParts++
+		// imageParts := make([]DataPart, 0)
+		numDataParts := len(geoshot) / dataPartSize
+		if len(geoshot)%1450 > 0 {
+			numDataParts++
 		}
 
-		c.HashGenerator.Write(image)
+		c.HashGenerator.Write(geoshot)
 		calculatedHash := base64.URLEncoding.EncodeToString(c.HashGenerator.Sum(nil))
 
 		var wg sync.WaitGroup
-		wg.Add(numImageParts)
-		for i := 0; i < numImageParts; i++ {
+		wg.Add(numDataParts)
+		for i := 0; i < numDataParts; i++ {
 			/*if used for testing purposes
-			i == numImageParts/2 {
+			i == numDataParts/2 {
 				fmt.Println("Sleeping for 10 seconds")
 				time.Sleep(10 * time.Second)
 			}*/
 			go func(partNumber int) {
-				bdy, err := json.Marshal(
-					ImagePart{
-						DataHash:   fmt.Sprintf("%v", calculatedHash),
-						PartNumber: partNumber + 1,
-						TotalParts: numImageParts,
-						PartData:   image[partNumber*imagePartSize : (partNumber+1)*imagePartSize],
-					},
-				)
-				if err != nil {
-					utils.DefaultLogger.Fatalf(err, exitcodes.ExitFailedProcessingImage)
+				var bdy []byte
+				if partNumber == numDataParts-1 {
+					bdy, err = json.Marshal(
+						DataPart{
+							DataHash:   fmt.Sprintf("%v", calculatedHash),
+							PartNumber: partNumber + 1,
+							TotalParts: numDataParts,
+							PartData:   geoshot[partNumber*dataPartSize:],
+						},
+					)
+					if err != nil {
+						utils.DefaultLogger.Fatalf(err, exitcodes.ExitFailedProcessingData)
+					}
+				} else {
+					bdy, err = json.Marshal(
+						DataPart{
+							DataHash:   fmt.Sprintf("%v", calculatedHash),
+							PartNumber: partNumber + 1,
+							TotalParts: numDataParts,
+							PartData:   geoshot[partNumber*dataPartSize : (partNumber+1)*dataPartSize],
+						},
+					)
+					if err != nil {
+						utils.DefaultLogger.Fatalf(err, exitcodes.ExitFailedProcessingData)
+					}
 				}
 
 				for true {
-					utils.DefaultLogger.Infof("GET %s", addr)
+					utils.DefaultLogger.Infof("POST %s", addr)
 					rsp, err := c.HttpClient.Post(addr, "application/json", bytes.NewBuffer(bdy))
 					if err == nil {
 						utils.DefaultLogger.Infof("Got response for %s: %#v", addr, rsp)
