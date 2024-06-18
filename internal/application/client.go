@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/quic-go/quic-go/http3"
 
@@ -49,7 +50,6 @@ func (c *Client) ExecuteCommand(command Command) {
 }
 
 func (c *Client) sendGeoshot(args []string) {
-	dataPartSize := 1400
 
 	if len(args) < 2 {
 		utils.DefaultLogger.Fatalf(
@@ -69,58 +69,95 @@ func (c *Client) sendGeoshot(args []string) {
 			utils.DefaultLogger.Fatalf(err, exitcodes.ExitFailedReadingFile)
 		}
 
-		// imageParts := make([]DataPart, 0)
-		numDataParts := len(readFile) / dataPartSize
-		if len(readFile)%1450 > 0 {
-			numDataParts++
+		geoshot := &Geoshot{}
+		err = json.Unmarshal(readFile, geoshot)
+		if err != nil {
+			utils.DefaultLogger.Fatalf(err, exitcodes.ExitFailedUnmarshalling)
 		}
 
-		c.HashGenerator.Write(readFile)
-		calculatedHash := base64.URLEncoding.EncodeToString(c.HashGenerator.Sum(nil))
-
-		var wg sync.WaitGroup
-		wg.Add(numDataParts)
-		for i := 0; i < numDataParts; i++ {
-			go func(partNumber int) {
-				var bdy []byte
-				if partNumber == numDataParts-1 {
-					bdy, err = json.Marshal(
-						DataPart{
-							DataHash:   fmt.Sprintf("%v", calculatedHash),
-							PartNumber: partNumber + 1,
-							TotalParts: numDataParts,
-							PartData:   readFile[partNumber*dataPartSize:],
-						},
-					)
-					if err != nil {
-						utils.DefaultLogger.Fatalf(err, exitcodes.ExitFailedProcessingData)
-					}
-				} else {
-					bdy, err = json.Marshal(
-						DataPart{
-							DataHash:   fmt.Sprintf("%v", calculatedHash),
-							PartNumber: partNumber + 1,
-							TotalParts: numDataParts,
-							PartData:   readFile[partNumber*dataPartSize : (partNumber+1)*dataPartSize],
-						},
-					)
-					if err != nil {
-						utils.DefaultLogger.Fatalf(err, exitcodes.ExitFailedProcessingData)
-					}
-				}
-
-				for true {
-					utils.DefaultLogger.Infof("POST %s", addr)
-					rsp, err := c.HttpClient.Post(addr, "application/json", bytes.NewBuffer(bdy))
-					if err == nil {
-						utils.DefaultLogger.Infof("Got response for %s: %#v", addr, rsp)
-						wg.Done()
-						break
-					}
-					utils.DefaultLogger.Errorf(err.Error())
-				}
-			}(i)
+		wg := &sync.WaitGroup{}
+		for i := 0; i < 21; i++ {
+			wg.Add(1)
+			tmpGeoShot := *geoshot
+			tmpGeoShot.Timestamp = fmt.Sprintf("%v", time.Now())
+			go c.send(wg, addr, tmpGeoShot)
+			time.Sleep(2 * time.Second)
 		}
+
 		wg.Wait()
 	}
+}
+
+func (c *Client) send(wgOut *sync.WaitGroup, addr string, geoshot Geoshot) {
+	dataPartSize := 1400
+
+	readFile, err := json.Marshal(geoshot)
+	if err != nil {
+		utils.DefaultLogger.Fatalf(err, exitcodes.ExitFailedUnmarshalling)
+	}
+
+	// imageParts := make([]DataPart, 0)
+	numDataParts := len(readFile) / dataPartSize
+	if len(readFile)%1450 > 0 {
+		numDataParts++
+	}
+
+	c.HashGenerator.Write(readFile)
+	calculatedHash := base64.URLEncoding.EncodeToString(c.HashGenerator.Sum(nil))
+
+	var wg sync.WaitGroup
+	wg.Add(numDataParts)
+	for i := 0; i < numDataParts; i++ {
+		go func(partNumber int) {
+			var bdy []byte
+			if partNumber == numDataParts-1 {
+				bdy, err = json.Marshal(
+					DataPart{
+						DataHash:   fmt.Sprintf("%v", calculatedHash),
+						PartNumber: partNumber + 1,
+						TotalParts: numDataParts,
+						PartData:   readFile[partNumber*dataPartSize:],
+					},
+				)
+				if err != nil {
+					utils.DefaultLogger.Fatalf(err, exitcodes.ExitFailedProcessingData)
+				}
+			} else {
+				bdy, err = json.Marshal(
+					DataPart{
+						DataHash:   fmt.Sprintf("%v", calculatedHash),
+						PartNumber: partNumber + 1,
+						TotalParts: numDataParts,
+						PartData:   readFile[partNumber*dataPartSize : (partNumber+1)*dataPartSize],
+					},
+				)
+				if err != nil {
+					utils.DefaultLogger.Fatalf(err, exitcodes.ExitFailedProcessingData)
+				}
+			}
+
+			for true {
+				utils.DefaultLogger.Infof("POST %s", addr)
+				rsp, err := c.HttpClient.Post(addr, "application/json", bytes.NewBuffer(bdy))
+				if err == nil {
+					utils.DefaultLogger.Infof("Got response for %s: %#v", addr, rsp)
+					wg.Done()
+					break
+				}
+				utils.DefaultLogger.Errorf(err.Error())
+			}
+		}(i)
+	}
+	wg.Wait()
+	wgOut.Done()
+}
+
+type Geoshot struct {
+	Image           []byte      `json:"jpg"`
+	Timestamp       string      `json:"ts"`
+	Age             int         `json:"age"`
+	DeviceId        int         `json:"id"`
+	Datetime        string      `json:"dt"`
+	Coordinates     [][]float64 `json:"geo"`
+	VehicleStanding int         `json:"vel"`
 }

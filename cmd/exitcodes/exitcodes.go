@@ -7,4 +7,5 @@ const (
 	ExitBadArguments
 	ExitFailedReadingFile
 	ExitFailedProcessingData
+	ExitFailedUnmarshalling
 )
