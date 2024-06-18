@@ -36,7 +36,7 @@ func NewClient() (*application.Client, *http3.RoundTripper) {
 }
 
 func initilizeRoundTripper() *http3.RoundTripper {
-	insecure := flag.Bool("insecure", true, "skip certificate verification")
+	insecure := flag.Bool("insecure", false, "skip certificate verification")
 	enableQlog := flag.Bool("qlog", false, "output a qlog (in the same directory)")
 	flag.Parse()
 

@@ -50,6 +50,7 @@ func (c *Client) ExecuteCommand(command Command) {
 
 func (c *Client) sendGeoshot(args []string) {
 	dataPartSize := 1400
+
 	if len(args) < 2 {
 		utils.DefaultLogger.Fatalf(
 			errors.New(
@@ -63,28 +64,23 @@ func (c *Client) sendGeoshot(args []string) {
 	geoshotPaths := args[1:]
 
 	for _, geoshotPath := range geoshotPaths {
-		geoshot, err := os.ReadFile(geoshotPath)
+		readFile, err := os.ReadFile(geoshotPath)
 		if err != nil {
 			utils.DefaultLogger.Fatalf(err, exitcodes.ExitFailedReadingFile)
 		}
 
 		// imageParts := make([]DataPart, 0)
-		numDataParts := len(geoshot) / dataPartSize
-		if len(geoshot)%1450 > 0 {
+		numDataParts := len(readFile) / dataPartSize
+		if len(readFile)%1450 > 0 {
 			numDataParts++
 		}
 
-		c.HashGenerator.Write(geoshot)
+		c.HashGenerator.Write(readFile)
 		calculatedHash := base64.URLEncoding.EncodeToString(c.HashGenerator.Sum(nil))
 
 		var wg sync.WaitGroup
 		wg.Add(numDataParts)
 		for i := 0; i < numDataParts; i++ {
-			/*if used for testing purposes
-			i == numDataParts/2 {
-				fmt.Println("Sleeping for 10 seconds")
-				time.Sleep(10 * time.Second)
-			}*/
 			go func(partNumber int) {
 				var bdy []byte
 				if partNumber == numDataParts-1 {
@@ -93,7 +89,7 @@ func (c *Client) sendGeoshot(args []string) {
 							DataHash:   fmt.Sprintf("%v", calculatedHash),
 							PartNumber: partNumber + 1,
 							TotalParts: numDataParts,
-							PartData:   geoshot[partNumber*dataPartSize:],
+							PartData:   readFile[partNumber*dataPartSize:],
 						},
 					)
 					if err != nil {
@@ -105,7 +101,7 @@ func (c *Client) sendGeoshot(args []string) {
 							DataHash:   fmt.Sprintf("%v", calculatedHash),
 							PartNumber: partNumber + 1,
 							TotalParts: numDataParts,
-							PartData:   geoshot[partNumber*dataPartSize : (partNumber+1)*dataPartSize],
+							PartData:   readFile[partNumber*dataPartSize : (partNumber+1)*dataPartSize],
 						},
 					)
 					if err != nil {

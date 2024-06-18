@@ -24,6 +24,15 @@ func main() {
 		)
 	}
 
+	commandNum, err := strconv.Atoi(args[1])
+	if err != nil {
+		utils.DefaultLogger.Fatalf(
+			errors.New(
+				"command number is not a number",
+			), exitcodes.ExitUnkownCommand,
+		)
+	}
+
 	// initlize client
 	client, roundTripper := bootstrap.NewClient()
 	defer func() {
@@ -33,15 +42,6 @@ func main() {
 			utils.DefaultLogger.Errorf("Error closing round tripper: %s", err)
 		}
 	}()
-
-	commandNum, err := strconv.Atoi(args[1])
-	if err != nil {
-		utils.DefaultLogger.Fatalf(
-			errors.New(
-				"command number is not a number",
-			), exitcodes.ExitUnkownCommand,
-		)
-	}
 
 	client.ExecuteCommand(
 		application.Command{
